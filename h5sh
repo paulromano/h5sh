@@ -1,0 +1,482 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import argparse
+import cmd
+import os
+import readline
+import shlex
+import sys
+
+import h5py
+import numpy as np
+
+# ANSI escape sequences
+if os.name == 'posix':
+   ENDC = '\033[0m'
+   BOLD = '\033[1m'
+   BLUE = '\033[94m'
+else:
+   ENDC = BOLD = BLUE = ''
+
+directory = lambda s: BLUE + BOLD + s + ENDC + ENDC
+
+
+class H5Shell(cmd.Cmd):
+   """Line-oriented interpreter framework for HDF5 files."""
+
+   def __init__(self, fh):
+      """Initialize an H5Shell instance
+
+      Parameters
+      ----------
+      fh : h5py.File
+          Previously-opened HDF5 file
+
+      """
+
+      cmd.Cmd.__init__(self)
+      self.f = fh
+      self.group = self.f
+      self.last_group = self.group
+      self.prompt = os.path.basename(self.group.name) + '> '
+
+      # Make sure - and / characters are not treated as word boundaries
+      delims = readline.get_completer_delims()
+      delims = delims.replace('-', '')
+      delims = delims.replace('/', '')
+      delims = delims.replace(',', '')
+      readline.set_completer_delims(delims)
+
+   def abspath(self, path=''):
+      """Absolute path in HDF5 file
+
+      Parameters
+      ----------
+      path : str
+          absolute or relative path
+
+      """
+
+      # Determine absolute path given relative path
+      if path.startswith('/'):
+         # Path is already absolute
+         abspath = path
+      else:
+         abspath = os.path.abspath(os.path.join(self.group.name, path))
+
+      # Check if absolute path is a group and if so, append '/'
+      if abspath in self.f:
+         if isinstance(self.f[abspath], h5py.Group):
+            if not abspath.endswith('/'):
+               abspath += '/'
+
+      return abspath
+
+   def do_cat(self, arg):
+      """Display data in a Dataset
+
+      Parameters
+      ----------
+      arg : str
+          path of Dataset
+
+      """
+
+      # Check that argument was given
+      if not arg:
+         self.help_cat()
+         return
+      # If -f option given, show all data in Dataset
+      words = shlex.split(arg)
+      if '-f' in words[:-1]:
+         np.set_printoptions(threshold=np.nan)
+
+      lastarg = words[-1]
+      path = self.abspath(lastarg)
+      if path in self.f:
+         dataset = self.f[path]
+         if isinstance(dataset, h5py.Dataset):
+            print(dataset.value)
+         else:
+            print('cat: {}: Not a dataset'.format(lastarg))
+      else:
+         print('cat: {}: No such dataset'.format(lastarg))
+
+      # If -f option given, reset numpy threshold print option
+      if '-f' in words[:-1]:
+         np.set_printoptions(threshold=1000)
+
+   def do_cd(self, arg):
+      """Change the current group
+
+      Parameters
+      ----------
+      arg : str
+          absolute or relative path
+
+      """
+
+      # As in bash, - indicates the previous group
+      if arg == '-':
+         group = self.last_group
+         self.last_group = self.group
+         self.group = group
+         self.prompt = os.path.basename(self.group.name) + '> '
+         return
+
+      # Get absolute path name
+      path = self.abspath(arg)
+      if path  in self.f:
+         group = self.f[path]
+         # Check if given path is a group
+         if isinstance(group, h5py.Group):
+            self.last_group = self.group
+            self.group = group
+            self.prompt = os.path.basename(self.group.name) + '> '
+         else:
+            print('cd: {}: Not a group'.format(arg))
+      else:
+         print('cd: {}: No such group'.format(arg))
+
+   def do_cp(self, arg):
+      """Copy a dataset or group
+
+      Parameters
+      ----------
+      arg : str
+          arguments to cp command
+
+      """
+
+      # Check that file is writable
+      if self.f.mode != 'r+':
+         print('cp: HDF5 file is not open in read/write mode')
+         return
+
+      # Make sure enough arguments were specified
+      words = shlex.split(arg)
+      if len(words) < 2:
+         print("cp: missing destination operand after `{}'".format(arg))
+         return
+
+      # Get absolute paths
+      dest = self.abspath(words[-1])
+
+      # For 3+ argument form, destination must be a group
+      if ((dest in self.f and isinstance(self.d[dest], h5py.Dataset))
+          or dest not in self.f) and len(words) > 2:
+         print("cp: target `{}' is not a group".format(words[-1]))
+         return
+
+      for source in map(self.abspath, words[:-1]):
+         # Check that source exists
+         if source not in self.f:
+            print('cp: {}: No such group or dataset'.format(words[0]))
+            continue
+
+         # Modify destination if it is a group
+         if dest in self.f and isinstance(self.f[dest], h5py.Group):
+            final_dest = dest + os.path.basename(source.rstrip('/'))
+         else:
+            final_dest = dest
+
+         # If destination exists, delete it first
+         if final_dest in self.f:
+            del self.f[final_dest]
+
+         # Copy source to destination
+         self.f.copy(source, final_dest)
+
+   def do_ls(self, arg):
+      """List contents of current group
+
+      Parameters
+      ----------
+      arg : str, optional
+           absolute or relative path
+
+      """
+
+      # Get absolute path -- note that if no argument is given, abpath returns
+      # the path to the current group
+      path = self.abspath(arg)
+
+      # Check to make sure path is in file
+      if path in self.f:
+         nodes = list(self.f[path].values())
+      else:
+         print('ls: {}: No such group'.format(arg))
+         return
+
+      # The vals list contains tuples contain (datatype, size of data, name) and
+      # the lengths dictionary specifies the maximum length of each column
+      vals = [('group', '1', directory('.')),
+              ('group', '1', directory('..'))]
+      lengths = {'dtype': 5, 'size': 1 , 'name': 2}
+
+      for node in nodes:
+         # For each value in group, determine datatype, size, and name
+         basename = os.path.basename(node.name)
+         if isinstance(node, h5py.Group):
+            dtype = 'group'
+            size = '1'
+            name = directory(basename)
+         elif isinstance(node, h5py.Dataset):
+            dtype = node.dtype.name
+            size = str(int(node.size))
+            name = basename
+         vals.append((dtype, size, name))
+
+         # Adjust size of columns as necessary
+         lengths['dtype'] = max(lengths['dtype'], len(dtype))
+         lengths['size'] = max(lengths['size'], len(dtype))
+         lengths['name'] = max(lengths['name'], len(dtype))
+
+      # Create str.format specification for three columns
+      spec = '{{0:{0[dtype]}}}  {{1:>{0[size]}}}  {{2:{0[name]}}}'.format(lengths)
+
+      # Display each value in the group
+      for dtype, size, name in vals:
+         print(spec.format(dtype, size, name))
+
+   def do_exit(self, arg):
+      """Exit the shell."""
+
+      self.f.close()
+      sys.exit()
+
+   def do_EOF(self, arg):
+      """Exit the shell."""
+
+      print()
+      self.do_exit(arg)
+
+   def do_mkdir(self, arg):
+      """Create a new group
+
+      Parameters
+      ----------
+      arg : str
+          absolute or relative path
+
+      """
+
+      # Check that file is writable
+      if self.f.mode != 'r+':
+         print('mkdir: HDF5 file is not open in read/write mode')
+         return
+
+      words = shlex.split(arg)
+      for word in words:
+         path = self.abspath(word)
+         if path in self.f:
+            print("mkdir: cannot create group `{}': Groups exists".format(arg))
+         else:
+            # Create group
+            self.f.create_group(path)
+
+   def do_mv(self, arg):
+      """Move a dataset or group
+
+      Parameters
+      ----------
+      arg : str
+          arguments to mv command
+
+      """
+
+      # Check that file is writable
+      if self.f.mode != 'r+':
+         print('mv: HDF5 file is not open in read/write mode')
+         return
+
+      # Make sure enough arguments were specified
+      words = shlex.split(arg)
+      if len(words) < 2:
+         print("mv: missing destination operand after `{}'".format(arg))
+         return
+
+      # Get absolute paths
+      dest = self.abspath(words[-1])
+
+      # For 3+ argument form, destination must be a group
+      if ((dest in self.f and isinstance(self.d[dest], h5py.Dataset))
+          or dest not in self.f) and len(words) > 2:
+         print("mv: target `{}' is not a group".format(words[-1]))
+         return
+
+      for source in map(self.abspath, words[:-1]):
+         # Check that source exists
+         if source not in self.f:
+            print('mv: {}: No such group or dataset'.format(words[0]))
+            continue
+
+         # Modify destination if it is a group
+         if dest in self.f and isinstance(self.f[dest], h5py.Group):
+            final_dest = dest + os.path.basename(source.rstrip('/'))
+         else:
+            final_dest = dest
+
+         # If destination exists, delete it first
+         if final_dest in self.f:
+            del self.f[final_dest]
+
+         # Copy source to destination
+         self.f.copy(source, final_dest)
+         del self.f[source]
+
+   def do_pwd(self, arg):
+      """Display the path of the current group"""
+
+      print(self.group.name)
+
+   def do_rm(self, arg):
+      """Remove a dataset or group
+
+      Parameters
+      ----------
+      arg : str
+          absolute or relative path
+
+      """
+
+      # Check that file is writable
+      if self.f.mode != 'r+':
+         print('rm: HDF5 file is not open in read/write mode')
+         return
+
+      words = shlex.split(arg)
+      for word in words:
+         path = self.abspath(word)
+         if path not in self.f:
+            print('rm: {}: No such group or dataset'.format(arg))
+         else:
+            # Delete path
+            del self.f[path]
+
+   def completes(self, path, nodetype=None):
+      """Determine completions given a partial path
+
+      Parameters
+      ----------
+      path : str
+          absolute or relative path
+      nodetype : Group or Dataset class
+          class to match for completions
+
+      """
+
+      abspath = self.abspath(path)
+
+      # Since the 'path' variable is used as a prefix later, if it is determined
+      # that the path is a group. add a '/' at the end of it
+      if abspath.endswith('/') and not path.endswith('/') and path:
+         path += '/'
+
+      # Get the directory and base name of the specified path
+      dirname = os.path.dirname(abspath)
+      basename = os.path.basename(abspath)
+
+      completes = []
+      for node in list(self.f[dirname].values()):
+         # If node is a group, add a '/' suffix
+         suffix = '/' if isinstance(node, h5py.Group) else ''
+
+         # Skip nodes which don't match specified nodetype
+         if not nodetype or isinstance(node, nodetype):
+            # Determine basename of current node
+            node_basename = os.path.basename(node.name)
+
+            # Only add to completion if basename of specified path is contained
+            # in basename of node
+            if node_basename.startswith(basename):
+               prefix = os.path.dirname(path)
+               if prefix:
+                  # Rather tha nusing basename, we use the directory name of
+                  # 'path' since it might be something like ../../. Note that
+                  # the .replace() method was added to treat the case where the
+                  # specified path is '/'
+                  completes.append((prefix + '/' + node_basename +
+                                    suffix).replace('//', '/'))
+               else:
+                  # For relative paths, we don't need to add a prefix
+                  completes.append(node_basename + suffix)
+
+      return completes
+
+   def complete_cat(self, text, line, begidx, endidx):
+      return self.completes(text, h5py.Dataset)
+
+   def complete_cd(self, text, line, begidx, endidx):
+      return self.completes(text, h5py.Group)
+
+   def complete_cp(self, text, line, begidx, endidx):
+      return self.completes(text)
+
+   def complete_ls(self, text, line, begidx, endidx):
+      return self.completes(text, h5py.Group)
+
+   def complete_mkdir(self, text, line, begidx, endidx):
+      return self.completes(text, h5py.Group)
+
+   def complete_mv(self, text, line, begidx, endidx):
+      return self.completes(text)
+
+   def complete_rm(self, text, line, begidx, endidx):
+      return self.completes(text)
+
+   def help_cat(self):
+      print('Display a dataset')
+
+   def help_cd(self):
+      print('Change the current group')
+
+   def help_cp(self):
+      print('Copy a dataset or group')
+
+   def help_exit(self):
+      print('Exit the HDF5 shell')
+
+   def help_EOF(self):
+      print('Exit the HDF5 shell')
+
+   def help_ls(self):
+      print('Display a listing of groups and dataset within '
+            'the current group')
+
+   def help_mkdir(self):
+      print('Create a new group')
+
+   def help_mv(self):
+      print('Move a dataset or group')
+
+   def help_pwd(self):
+      print('Display the current group')
+
+   def help_rm(self):
+      print('Remove a dataset or group')
+
+
+if __name__ == '__main__':
+   # Set up command-line argument parser
+   parser = argparse.ArgumentParser()
+   parser.add_argument('-w', '--write', dest='write', action='store_true',
+                       default=False, help="Open HDF5 in read/write mode")
+   parser.add_argument('filename', help="HDF5 filename")
+   args = parser.parse_args()
+
+   try:
+      if args.write:
+         # Open HDF5 in read/write mode
+         fh = h5py.File(args.filename, 'a')
+      else:
+         # Open HDF5 in read-only mode
+         fh = h5py.File(args.filename, 'r')
+   except:
+      sys.exit('h5sh: {}: Not a valid HDF5 file'.format(args.filename))
+
+   # Create command line shell
+   shell = H5Shell(fh)
+   shell.cmdloop()
