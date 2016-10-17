@@ -74,6 +74,29 @@ class H5Shell(cmd.Cmd):
 
       return abspath
 
+   def do_attrs(self, arg):
+      """Display attribute on a Dataset/Group
+
+      Parameters
+      ----------
+      arg : str
+          path of Dataset/Group
+
+      """
+
+      # Check that argument was given
+      if not arg:
+         self.help_cat()
+         return
+
+      words = shlex.split(arg)
+      path = self.abspath(words[0])
+      if path in self.f:
+         obj = self.f[path]
+         print(dict(obj.attrs.items()))
+      else:
+         print('attrs: {}: No such object'.format(path))
+
    def do_cat(self, arg):
       """Display data in a Dataset
 
@@ -238,7 +261,7 @@ class H5Shell(cmd.Cmd):
       spec = '{{0:{0[dtype]}}}  {{1:>{0[size]}}}  {{2:{0[name]}}}'.format(lengths)
 
       # Display each value in the group
-      for dtype, size, name in vals:
+      for dtype, size, name in sorted(vals, key=lambda x: x[2]):
          print(spec.format(dtype, size, name))
 
    def do_exit(self, arg):
@@ -405,6 +428,9 @@ class H5Shell(cmd.Cmd):
                   completes.append(node_basename + suffix)
 
       return completes
+
+   def complete_attrs(self, text, line, begidx, endidx):
+      return self.completes(text)
 
    def complete_cat(self, text, line, begidx, endidx):
       return self.completes(text, h5py.Dataset)
