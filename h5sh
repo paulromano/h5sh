@@ -226,9 +226,15 @@ class H5Shell(cmd.Cmd):
       # the path to the current group
       path = self.abspath(arg)
 
+      path_node = self.f[path]
+      # Check to make sure path is a group
+      if not isinstance(path_node, h5py.Group):
+         print('ls: {} is not a group'.format(arg))
+         return
+
       # Check to make sure path is in file
       if path in self.f:
-         nodes = list(self.f[path].values())
+         nodes = list(path_node.values())
       else:
          print('ls: {}: No such group'.format(arg))
          return
