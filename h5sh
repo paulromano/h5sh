@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import argparse
 import cmd
+import imp
 import os
 import readline
 import shlex
@@ -22,6 +23,12 @@ else:
 
 directory = lambda s: BLUE + BOLD + s + ENDC + ENDC
 
+_alias_table = {}
+try:
+   h5rc = imp.load_source('h5rc', os.getenv('HOME') + '/.h5rc')
+   _alias_table = h5rc.aliases
+except (FileNotFoundError, AttributeError):
+   pass
 
 class H5Shell(cmd.Cmd):
    """Line-oriented interpreter framework for HDF5 files."""
@@ -483,6 +490,13 @@ class H5Shell(cmd.Cmd):
 
    def help_rm(self):
       print('Remove a dataset or group')
+
+   def default(self, line):
+      cmd, arg, line = self.parseline(line)
+      try:
+         getattr(self, "do_" + _alias_table[cmd])(arg)
+      except:
+         super().default(line)
 
 
 if __name__ == '__main__':
