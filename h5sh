@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import argparse
 import cmd
+from configparser import ConfigParser
 import imp
 import os
 import readline
@@ -23,12 +24,8 @@ else:
 
 directory = lambda s: BLUE + BOLD + s + ENDC + ENDC
 
-_alias_table = {}
-try:
-   h5rc = imp.load_source('h5rc', os.getenv('HOME') + '/.h5rc')
-   _alias_table = h5rc.aliases
-except (FileNotFoundError, AttributeError):
-   pass
+config = ConfigParser()
+config.read(os.getenv('HOME') + '/.h5rc')
 
 class H5Shell(cmd.Cmd):
    """Line-oriented interpreter framework for HDF5 files."""
@@ -55,6 +52,13 @@ class H5Shell(cmd.Cmd):
       delims = delims.replace('/', '')
       delims = delims.replace(',', '')
       readline.set_completer_delims(delims)
+
+      self.alias_table = {}
+      try:
+         self.alias_table = config['ALIASES']
+      except KeyError:
+         pass
+
 
    def abspath(self, path=''):
       """Absolute path in HDF5 file
@@ -494,7 +498,7 @@ class H5Shell(cmd.Cmd):
    def default(self, line):
       cmd, arg, line = self.parseline(line)
       try:
-         getattr(self, "do_" + _alias_table[cmd])(arg)
+         getattr(self, "do_" + self.alias_table[cmd])(arg)
       except:
          super().default(line)
 
