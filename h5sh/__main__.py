@@ -7,7 +7,8 @@ import h5py
 from prompt_toolkit import PromptSession
 
 from . import commands
-from .completions import H5FileState, CommandCompleter
+from .completions import CommandCompleter
+from .filestate import FileState
 
 
 def main() -> None:
@@ -24,7 +25,7 @@ def main() -> None:
     # Open HDF5 in read/write mode
     mode = 'a' if args.write else 'r'
     with h5py.File(args.filename, mode) as fh:
-        state = H5FileState(fh)
+        state = FileState(fh)
         session = PromptSession()
 
         while True:

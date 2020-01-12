@@ -5,12 +5,12 @@ import h5py
 import numpy as np
 from prompt_toolkit import print_formatted_text, HTML
 
-from .completions import H5FileState
+from .filestate import FileState
 
 COMMANDS = ['attrs', 'cat', 'cd', 'cp', 'exit', 'help', 'ls', 'mkdir', 'mv', 'pwd', 'rm']
 
 
-def attrs(args: List[str], state: H5FileState) -> None:
+def attrs(args: List[str], state: FileState) -> None:
     """Display attribute on a Dataset/Group
 
     Parameters
@@ -32,7 +32,7 @@ def attrs(args: List[str], state: H5FileState) -> None:
         print(f'attrs: {path}: No such object')
 
 
-def cat(args: List[str], state: H5FileState) -> None:
+def cat(args: List[str], state: FileState) -> None:
     """Display data in a Dataset
 
     Parameters
@@ -66,7 +66,7 @@ def cat(args: List[str], state: H5FileState) -> None:
         np.set_printoptions(threshold=1000)
 
 
-def cd(args: List[str], state: H5FileState) -> None:
+def cd(args: List[str], state: FileState) -> None:
     """Change the current group
 
     Parameters
@@ -98,7 +98,7 @@ def cd(args: List[str], state: H5FileState) -> None:
         print(f'cd: {arg}: No such group')
 
 
-def cp(args: List[str], state: H5FileState) -> None:
+def cp(args: List[str], state: FileState) -> None:
     """Copy a dataset or group
 
     Parameters
@@ -147,7 +147,7 @@ def cp(args: List[str], state: H5FileState) -> None:
         state.f.copy(source, final_dest)
 
 
-def ls(args: List[str], state: H5FileState) -> None:
+def ls(args: List[str], state: FileState) -> None:
     """List contents of current group
 
     Parameters
@@ -210,7 +210,7 @@ def ls(args: List[str], state: H5FileState) -> None:
         print_formatted_text(HTML(spec.format(dtype, size, name)))
 
 
-def mkdir(args: List[str], state: H5FileState) -> None:
+def mkdir(args: List[str], state: FileState) -> None:
     """Create a new group
 
     Parameters
@@ -234,7 +234,7 @@ def mkdir(args: List[str], state: H5FileState) -> None:
             state.f.create_group(path)
 
 
-def mv(args: List[str], state: H5FileState) -> None:
+def mv(args: List[str], state: FileState) -> None:
     """Move a dataset or group
 
     Parameters
@@ -284,12 +284,12 @@ def mv(args: List[str], state: H5FileState) -> None:
         del state.f[source]
 
 
-def pwd(args: List[str], state: H5FileState) -> None:
+def pwd(args: List[str], state: FileState) -> None:
     """Display the path of the current group"""
     print(state.group.name)
 
 
-def rm(args: List[str], state: H5FileState) -> None:
+def rm(args: List[str], state: FileState) -> None:
     """Remove a dataset or group
 
     Parameters
@@ -328,7 +328,7 @@ _HELP_MESSAGES = {
 }
 
 
-def help(args: List[str], state: Optional[H5FileState] = None) -> None:
+def help(args: List[str], state: Optional[FileState] = None) -> None:
     """Show help information."""
     if not args:
         print("Commands:\n")
