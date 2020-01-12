@@ -4,6 +4,7 @@ import os
 import re
 import shlex
 import sys
+from typing import Iterator, List
 
 import numpy as np
 import h5py
@@ -30,6 +31,7 @@ class CommandCompleter(Completer):
         self.state = state
 
     def get_completions(self, document, complete_event):
+        """Get word completions."""
         words = document.text.split()
         n = len(words)
         if n == 0:
@@ -52,12 +54,15 @@ class CommandCompleter(Completer):
 
 
 class H5FileState:
-    def __init__(self, fh):
+    """Stores the HDF5 file and information about the current/last group."""
+
+
+    def __init__(self, fh: h5py.File):
         self.f = fh
         self.group = self.f
         self.last_group = self.group
 
-    def abspath(self, path=''):
+    def abspath(self, path: str = '') -> str:
         """Absolute path in HDF5 file
 
         Parameters
@@ -82,7 +87,7 @@ class H5FileState:
 
         return abspath
 
-    def completions(self, path, nodetype=None):
+    def completions(self, path: str, nodetype=None) -> Iterator[str]:
         """Determine completions given a partial path
 
         Parameters
@@ -129,12 +134,12 @@ class H5FileState:
                         yield node_basename + suffix
 
 
-def attrs(args, state):
+def attrs(args: List[str], state: H5FileState) -> None:
     """Display attribute on a Dataset/Group
 
     Parameters
     ----------
-    args : list of str
+    args
         path of Dataset/Group
 
     """
@@ -151,13 +156,13 @@ def attrs(args, state):
         print(f'attrs: {path}: No such object')
 
 
-def cat(args, state):
+def cat(args: List[str], state: H5FileState) -> None:
     """Display data in a Dataset
 
     Parameters
     ----------
-    arg : str
-        path of Dataset
+    args
+        paths of Datasets
 
     """
 
@@ -185,7 +190,7 @@ def cat(args, state):
         np.set_printoptions(threshold=1000)
 
 
-def cd(arg, state):
+def cd(arg: str, state: H5FileState) -> None:
     """Change the current group
 
     Parameters
@@ -200,7 +205,6 @@ def cd(arg, state):
         group = state.last_group
         state.last_group = state.group
         state.group = group
-        #state.prompt = os.path.basename(state.group.name) + '> '
         return
 
     # Get absolute path name
@@ -211,14 +215,13 @@ def cd(arg, state):
         if isinstance(group, h5py.Group):
             state.last_group = state.group
             state.group = group
-            #state.prompt = os.path.basename(state.group.name) + '> '
         else:
             print(f'cd: {arg}: Not a group')
     else:
         print(f'cd: {arg}: No such group')
 
 
-def cp(args, state):
+def cp(args: List[str], state: H5FileState) -> None:
     """Copy a dataset or group
 
     Parameters
@@ -267,12 +270,12 @@ def cp(args, state):
         state.f.copy(source, final_dest)
 
 
-def ls(arg, state):
+def ls(arg: str, state: H5FileState) -> None:
     """List contents of current group
 
     Parameters
     ----------
-    arg : str, optional
+    arg : str
         absolute or relative path
 
     """
@@ -326,13 +329,13 @@ def ls(arg, state):
         print_formatted_text(HTML(spec.format(dtype, size, name)))
 
 
-def mkdir(args, state):
+def mkdir(args: List[str], state: H5FileState) -> None:
     """Create a new group
 
     Parameters
     ----------
-    arg : str
-        absolute or relative path
+    args
+        absolute or relative paths
 
     """
 
@@ -350,7 +353,7 @@ def mkdir(args, state):
             state.f.create_group(path)
 
 
-def mv(args, state):
+def mv(args: List[str], state: H5FileState) -> None:
     """Move a dataset or group
 
     Parameters
@@ -400,18 +403,18 @@ def mv(args, state):
         del state.f[source]
 
 
-def pwd(state):
+def pwd(state: H5FileState) -> None:
     """Display the path of the current group"""
     print(state.group.name)
 
 
-def rm(args, state):
+def rm(args: List[str], state: H5FileState) -> None:
     """Remove a dataset or group
 
     Parameters
     ----------
-    arg : str
-        absolute or relative path
+    args
+        absolute or relative paths
 
     """
 
@@ -444,7 +447,7 @@ _HELP_MESSAGES = {
 }
 
 
-def help(args):
+def help(args: List[str]) -> None:
     if not args:
         print("Commands:\n")
         for cmd in COMMANDS:
@@ -456,7 +459,7 @@ def help(args):
         print(_HELP_MESSAGES[cmd])
 
 
-def main():
+def main() -> None:
     # Set up command-line argument parser
     parser = ArgumentParser()
     parser.add_argument('-w', '--write', dest='write', action='store_true',
