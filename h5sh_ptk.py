@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 import os
+import re
 import shlex
 import sys
 
@@ -8,6 +9,12 @@ import numpy as np
 import h5py
 from prompt_toolkit import PromptSession, print_formatted_text, HTML
 from prompt_toolkit.completion import Completer, Completion
+import prompt_toolkit.document
+
+# Monkey patch regular expression used to figure out if the cursor is on a word.
+# Namely, include / and . in the regex so that paths are considered "words"
+prompt_toolkit.document._FIND_CURRENT_WORD_RE = re.compile(
+    r"^([a-zA-Z0-9_/.]+|[^a-zA-Z0-9_/.\s]+)")
 
 
 def directory(s):
