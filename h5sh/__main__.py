@@ -41,14 +41,15 @@ def main() -> None:
             words = shlex.split(text)
             if words:
                 cmd, *args = words
-                if cmd not in commands.COMMANDS:
-                    print(f"{cmd}: command not found")
-                    continue
-                elif cmd == 'exit':
+                if cmd == 'exit':
                     break
 
-                func = getattr(commands, cmd)
-                func(args, state)
+                try:
+                    func = getattr(commands, cmd)
+                except AttributeError:
+                    print(f"{cmd}: command not found")
+                else:
+                    func(args, state)
 
 
 if __name__ == "__main__":

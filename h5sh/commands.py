@@ -1,3 +1,4 @@
+from functools import wraps
 import os
 import sys
 from typing import List, Optional
@@ -9,6 +10,18 @@ from prompt_toolkit import print_formatted_text, HTML
 from .filestate import FileState
 
 COMMANDS = ['attrs', 'cat', 'cd', 'cp', 'exit', 'help', 'ls', 'mkdir', 'mv', 'pwd', 'rm']
+
+
+def ensure_writable(func):
+    """Decorator to ensure a command is only run if the file is writable"""
+    @wraps(func)
+    def inner(args, state):
+        # Check that file is writable
+        if state.f.mode != 'r+':
+            print(f'{func.__name__}: HDF5 file is not open in read/write mode')
+            return
+        return func(args, state)
+    return inner
 
 
 def attrs(args: List[str], state: FileState) -> None:
@@ -100,6 +113,7 @@ def cd(args: List[str], state: FileState) -> None:
         print(f'cd: {arg}: No such group')
 
 
+@ensure_writable
 def cp(args: List[str], state: FileState) -> None:
     """Copy a dataset or group
 
@@ -109,12 +123,6 @@ def cp(args: List[str], state: FileState) -> None:
         arguments to cp command
 
     """
-
-    # Check that file is writable
-    if state.f.mode != 'r+':
-        print('cp: HDF5 file is not open in read/write mode')
-        return
-
     # Make sure enough arguments were specified
     if len(args) < 2:
         print(f"cp: missing destination operand after `{args}'")
@@ -212,6 +220,7 @@ def ls(args: List[str], state: FileState) -> None:
         print_formatted_text(HTML(spec.format(dtype, size, name)))
 
 
+@ensure_writable
 def mkdir(args: List[str], state: FileState) -> None:
     """Create a new group
 
@@ -221,12 +230,6 @@ def mkdir(args: List[str], state: FileState) -> None:
         absolute or relative paths
 
     """
-
-    # Check that file is writable
-    if state.f.mode != 'r+':
-        print('mkdir: HDF5 file is not open in read/write mode')
-        return
-
     for arg in args:
         path = state.abspath(arg)
         if path in state.f:
@@ -236,6 +239,7 @@ def mkdir(args: List[str], state: FileState) -> None:
             state.f.create_group(path)
 
 
+@ensure_writable
 def mv(args: List[str], state: FileState) -> None:
     """Move a dataset or group
 
@@ -245,12 +249,6 @@ def mv(args: List[str], state: FileState) -> None:
         arguments to mv command
 
     """
-
-    # Check that file is writable
-    if state.f.mode != 'r+':
-        print('mv: HDF5 file is not open in read/write mode')
-        return
-
     # Make sure enough arguments were specified
     if len(args) < 2:
         print(f"mv: missing destination operand after `{args[0]}'")
@@ -291,6 +289,7 @@ def pwd(args: List[str], state: FileState) -> None:
     print(state.group.name)
 
 
+@ensure_writable
 def rm(args: List[str], state: FileState) -> None:
     """Remove a dataset or group
 
@@ -300,12 +299,6 @@ def rm(args: List[str], state: FileState) -> None:
         absolute or relative paths
 
     """
-
-    # Check that file is writable
-    if state.f.mode != 'r+':
-        print('rm: HDF5 file is not open in read/write mode')
-        return
-
     for arg in args:
         path = state.abspath(arg)
         if path not in state.f:
