@@ -34,8 +34,10 @@ class CommandCompleter(Completer):
                     yield Completion(cmd, -len(word))
         else:
             cmd = words[0]
-            if cmd in ('cd', 'ls'):
+            if cmd in {'cd', 'ls'}:
                 gen = self.state.completions(word, h5py.Group)
+            elif cmd in {'exit', 'help', 'pwd'}:
+                return
             else:
                 gen = self.state.completions(word)
             for item in gen:
@@ -466,8 +468,11 @@ def main():
 
         while True:
             try:
-                text = session.prompt('> ', completer=CommandCompleter(state),
-                                      complete_while_typing=False)
+                text = session.prompt('> ',
+                    completer=CommandCompleter(state),
+                    complete_while_typing=False,
+                    bottom_toolbar=f"Current group: {state.group.name}",
+                )
             except EOFError:
                 break
 
