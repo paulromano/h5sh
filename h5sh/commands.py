@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import List, Optional
 
 import h5py
@@ -46,9 +47,10 @@ def cat(args: List[str], state: FileState) -> None:
     if not args:
         help(['cat'])
         return
+
     # If -f option given, show all data in Dataset
     if '-f' in args[:-1]:
-        np.set_printoptions(threshold=np.nan)
+        np.set_printoptions(threshold=sys.maxsize)
 
     lastarg = args[-1]
     path = state.abspath(lastarg)
