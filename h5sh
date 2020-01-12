@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from argparse import ArgumentParser
 from pathlib import Path
 import os
@@ -190,7 +192,7 @@ def cat(args: List[str], state: H5FileState) -> None:
         np.set_printoptions(threshold=1000)
 
 
-def cd(arg: str, state: H5FileState) -> None:
+def cd(args: List[str], state: H5FileState) -> None:
     """Change the current group
 
     Parameters
@@ -201,6 +203,7 @@ def cd(arg: str, state: H5FileState) -> None:
     """
 
     # As in bash, - indicates the previous group
+    arg = ' '.join(args)
     if arg == '-':
         group = state.last_group
         state.last_group = state.group
@@ -270,7 +273,7 @@ def cp(args: List[str], state: H5FileState) -> None:
         state.f.copy(source, final_dest)
 
 
-def ls(arg: str, state: H5FileState) -> None:
+def ls(args: List[str], state: H5FileState) -> None:
     """List contents of current group
 
     Parameters
@@ -282,6 +285,7 @@ def ls(arg: str, state: H5FileState) -> None:
 
     # Get absolute path -- note that if no argument is given, abpath returns
     # the path to the current group
+    arg = ' '.join(args)  # TODO: Treat arguments separately
     path = state.abspath(arg)
 
     path_node = state.f[path]
@@ -403,7 +407,7 @@ def mv(args: List[str], state: H5FileState) -> None:
         del state.f[source]
 
 
-def pwd(state: H5FileState) -> None:
+def pwd(args: List[str], state: H5FileState) -> None:
     """Display the path of the current group"""
     print(state.group.name)
 
@@ -447,7 +451,8 @@ _HELP_MESSAGES = {
 }
 
 
-def help(args: List[str]) -> None:
+def help(args: List[str], state: H5FileState) -> None:
+    """Show help information."""
     if not args:
         print("Commands:\n")
         for cmd in COMMANDS:
@@ -489,28 +494,14 @@ def main() -> None:
             words = shlex.split(text)
             if words:
                 cmd, *args = words
-                if cmd == 'attrs':
-                    attrs(args, state)
-                elif cmd == 'cat':
-                    cat(args, state)
-                elif cmd == 'cp':
-                    cp(*args, state)
-                elif cmd == 'cd':
-                    cd(' '.join(args), state)
+                if cmd not in COMMANDS:
+                    print(f"{cmd}: command not found")
+                    continue
                 elif cmd == 'exit':
                     break
-                elif cmd == 'help':
-                    help(args)
-                elif cmd == 'ls':
-                    ls(' '.join(args), state)
-                elif cmd == 'mkdir':
-                    mkdir(args, state)
-                elif cmd == 'mv':
-                    mv(args, state)
-                elif cmd == 'pwd':
-                    pwd(state)
-                elif cmd == 'rm':
-                    rm(args, state)
+
+                func = globals()[cmd]
+                func(args, state)
 
 if __name__ == '__main__':
     main()
