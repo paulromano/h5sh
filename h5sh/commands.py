@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 from prompt_toolkit import print_formatted_text, HTML
 
-from .interpreter import H5FileState
+from .completions import H5FileState
 
 COMMANDS = ['attrs', 'cat', 'cd', 'cp', 'exit', 'help', 'ls', 'mkdir', 'mv', 'pwd', 'rm']
 

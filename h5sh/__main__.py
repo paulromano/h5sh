@@ -7,7 +7,7 @@ import h5py
 from prompt_toolkit import PromptSession
 
 from . import commands
-from .interpreter import H5FileState, CommandCompleter
+from .completions import H5FileState, CommandCompleter
 
 
 def main() -> None:
